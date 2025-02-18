@@ -15,6 +15,7 @@
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css"
     />
     <style>
+      /* Layout styling */
       body, html {
         height: 100%;
         margin: 0;
@@ -91,6 +92,10 @@
           >
           <hr class="text-white" />
           <small>Master</small>
+          <!-- Ubah nama menu KPI jadi EYN atau tetap KPI -->
+          <a href="#" data-page="masterKPIPage" class="menu-link"
+            ><i class="bi bi-card-checklist me-2"></i>KPI</a
+          >
           <a href="#" data-page="masterPengurangPage" class="menu-link"
             ><i class="bi bi-file-earmark-minus me-2"></i>Pengurang Poin</a
           >
@@ -99,9 +104,6 @@
           >
           <a href="#" data-page="masterSettingKPIPage" class="menu-link"
             ><i class="bi bi-gear-fill me-2"></i>Setting KPI</a
-          >
-          <a href="#" data-page="masterKPIPage" class="menu-link"
-            ><i class="bi bi-card-checklist me-2"></i>KPI</a
           >
         </div>
         <button id="logoutBtn" class="btn btn-outline-light w-100 mt-3">
@@ -282,7 +284,6 @@
             <button class="btn btn-primary" type="submit">Simpan Penilaian</button>
           </form>
         </div>
-        
 
         <!-- Halaman Master Pengurang Poin -->
         <div id="masterPengurangPage" class="page">
@@ -313,7 +314,16 @@
                 <tr>
                   <th>ID</th>
                   <th>Title</th>
-                  <th>Description</th>
+                  <!-- Kolom2 hasil parsing description -->
+                  <th>Category</th>
+                  <th>Bobot</th>
+                  <th>Target</th>
+                  <th>Poor</th>
+                  <th>Fair</th>
+                  <th>Good</th>
+                  <th>Outstanding</th>
+                  <th>Exceptional</th>
+                  <!-- Kolom existing -->
                   <th>Score</th>
                   <th>Validated</th>
                   <th>Aksi</th>
@@ -366,7 +376,7 @@
       document.querySelector('[data-page="bonusPage"]').click();
 
       // ---------------------------------------------------------------------------------
-      // 1. Bonus
+      // BONUS
       // ---------------------------------------------------------------------------------
       document.getElementById('calculateBonusBtn').addEventListener('click', async () => {
         try {
@@ -402,7 +412,7 @@
       });
 
       // ---------------------------------------------------------------------------------
-      // 2. Input KPI (POST /api/kpis)
+      // INPUT KPI (POST /api/kpis)
       // ---------------------------------------------------------------------------------
       document.getElementById('inputKPIForm').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -414,6 +424,9 @@
         const scaleInputs = document.querySelectorAll('#inputKPIPage .row input');
         const scales = Array.from(scaleInputs).map(input => input.value);
 
+        // Format description (string) agar nanti bisa di-parse
+        // Contoh format:
+        //   "Kategori: Individu, Bobot: 10%, Target: 100 Juta, Skala: poor 1, fair 2, good 3, outstanding 4, exceptional 5"
         const description = `Kategori: ${kpiCategory}, Bobot: ${kpiWeight}%, Target: ${kpiTarget}, Skala: poor ${scales[0]}, fair ${scales[1]}, good ${scales[2]}, outstanding ${scales[3]}, exceptional ${scales[4]}`;
 
         try {
@@ -434,7 +447,77 @@
       });
 
       // ---------------------------------------------------------------------------------
-      // 3. Master KPI (GET /api/kpis, PUT, DELETE)
+      // FUNGSI PARSE DESCRIPTION
+      // ---------------------------------------------------------------------------------
+      // Memecah string description menjadi object { category, bobot, target, poor, fair, good, outstanding, exceptional }
+      function parseDescription(desc) {
+        if (!desc || typeof desc !== "string") {
+          return {
+            category: "",
+            bobot: "",
+            target: "",
+            poor: "",
+            fair: "",
+            good: "",
+            outstanding: "",
+            exceptional: ""
+          };
+        }
+
+        let category = "";
+        let bobot = "";
+        let target = "";
+        let poor = "";
+        let fair = "";
+        let good = "";
+        let outstanding = "";
+        let exceptional = "";
+
+        // Bagi berdasarkan koma
+        const parts = desc.split(",");
+
+        parts.forEach(part => {
+          const trimmed = part.trim();
+          if (trimmed.startsWith("Kategori:")) {
+            category = trimmed.replace("Kategori:", "").trim();
+          } else if (trimmed.startsWith("Bobot:")) {
+            bobot = trimmed.replace("Bobot:", "").trim();
+          } else if (trimmed.startsWith("Target:")) {
+            target = trimmed.replace("Target:", "").trim();
+          } else if (trimmed.startsWith("Skala:")) {
+            // "Skala: poor 1"
+            const skalaPart = trimmed.replace("Skala:", "").trim();
+            if (skalaPart.startsWith("poor")) {
+              poor = skalaPart.replace("poor", "").trim();
+            }
+            // Sisanya (fair, good, dsb.) akan tertangkap di else-if berikut
+          } else if (trimmed.startsWith("poor")) {
+            poor = trimmed.replace("poor", "").trim();
+          } else if (trimmed.startsWith("fair")) {
+            fair = trimmed.replace("fair", "").trim();
+          } else if (trimmed.startsWith("good")) {
+            good = trimmed.replace("good", "").trim();
+          } else if (trimmed.startsWith("outstanding")) {
+            outstanding = trimmed.replace("outstanding", "").trim();
+          } else if (trimmed.startsWith("exceptional")) {
+            exceptional = trimmed.replace("exceptional", "").trim();
+          }
+        });
+
+        return {
+          category,
+          bobot,
+          target,
+          poor,
+          fair,
+          good,
+          outstanding,
+          exceptional
+        };
+      }
+
+      // ---------------------------------------------------------------------------------
+      // MASTER KPI (GET /api/kpis, PUT, DELETE)
       // ---------------------------------------------------------------------------------
       async function loadKPIs() {
         try {
@@ -444,12 +527,23 @@
           const kpis = res.data.data;
           const tbody = document.getElementById('kpiTableBody');
           tbody.innerHTML = '';
+
           kpis.forEach(kpi => {
+            // Parse description jadi object
+            const descObj = parseDescription(kpi.description);
+
             tbody.innerHTML += `
               <tr>
                 <td>${kpi.ID}</td>
                 <td>${kpi.title}</td>
-                <td>${kpi.description}</td>
+                <td>${descObj.category}</td>
+                <td>${descObj.bobot}</td>
+                <td>${descObj.target}</td>
+                <td>${descObj.poor}</td>
+                <td>${descObj.fair}</td>
+                <td>${descObj.good}</td>
+                <td>${descObj.outstanding}</td>
+                <td>${descObj.exceptional}</td>
                 <td>${kpi.score}</td>
                 <td>${kpi.validated}</td>
                 <td>
@@ -472,7 +566,6 @@
         try {
           await axios.put(`http://localhost:8080/api/kpis/${kpiId}`, {
             title: newTitle
-            // tambahkan field lain jika diperlukan
           }, {
             headers: { Authorization: 'Bearer ' + token }
           });
@@ -497,51 +590,42 @@
           alert('Gagal menghapus KPI');
         }
       }
-      // Agar bisa dipanggil dari HTML onclick
       window.editKPI = editKPI;
       window.deleteKPI = deleteKPI;
 
       // ---------------------------------------------------------------------------------
-      // 4. Input Penilaian KPI: memuat Employee dan KPI di dropdown
+      // INPUT PENILAIAN KPI: load data Employee & KPI
       // ---------------------------------------------------------------------------------
       const selectEmployee = document.getElementById('selectEmployee');
       const selectKPI = document.getElementById('selectKPI');
 
       async function loadEmployeesAndKPI() {
         try {
-          // 4a. Muat data Employee
+          // Muat data Employee
           const empRes = await axios.get('http://localhost:8080/api/employees', {
             headers: { Authorization: 'Bearer ' + token }
           });
           const employees = empRes.data.data;
-          // Reset <selectEmployee>
           selectEmployee.innerHTML = '<option value="">- Pilih -</option>';
           employees.forEach(emp => {
-            // Pastikan field JSON sesuai, misal emp.ID dan emp.Name
             const option = document.createElement('option');
-            option.value = emp.ID;         // ID pegawai
-            option.textContent = emp.name; // Nama pegawai
-            console.log("Nama " + emp.name);
-            
+            option.value = emp.ID;
+            option.textContent = emp.Name;
             selectEmployee.appendChild(option);
           });
 
-          // 4b. Muat data KPI
+          // Muat data KPI
           const kpiRes = await axios.get('http://localhost:8080/api/kpis', {
             headers: { Authorization: 'Bearer ' + token }
           });
           const kpis = kpiRes.data.data;
-          // Reset <selectKPI>
           selectKPI.innerHTML = '<option value="">- Pilih -</option>';
           kpis.forEach(kpi => {
-            // Pastikan field JSON sesuai, misal kpi.ID dan kpi.title
             const option = document.createElement('option');
             option.value = kpi.ID;
             option.textContent = kpi.title;
             selectKPI.appendChild(option);
           });
-
-          console.log('Employee & KPI loaded successfully');
         } catch (err) {
           console.error(err);
           alert('Gagal memuat data karyawan atau KPI');
@@ -554,36 +638,37 @@
           loadEmployeesAndKPI();
         });
 
-      // Tangani submit form penilaian KPI (belum ada endpoint spesifik, contoh saja)
-      
-  document.getElementById('penilaianKPIForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    try {
-      const employeeId = document.getElementById('selectEmployee').value;
-      const kpiId = document.getElementById('selectKPI').value;
-      const achievement = document.getElementById('achievementField').value;
+      // Submit form penilaian KPI (contoh)
+      document.getElementById('penilaianKPIForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+          const employeeId = document.getElementById('selectEmployee').value;
+          const kpiId = document.getElementById('selectKPI').value;
+          const achievement = document.getElementById('achievementField').value;
 
-      await axios.post('http://localhost:8080/api/kpi_evaluations',
-        {
-          employee_id: parseInt(employeeId),
-          kpi_id: parseInt(kpiId),
-          achievement: achievement
-        },
-        {
-          headers: { Authorization: 'Bearer ' + token }
+          // Contoh: POST ke /api/kpi_evaluations
+          // Pastikan di sisi server sudah disiapkan
+          await axios.post('http://localhost:8080/api/kpi_evaluations',
+            {
+              employee_id: parseInt(employeeId),
+              kpi_id: parseInt(kpiId),
+              achievement: achievement
+            },
+            {
+              headers: { Authorization: 'Bearer ' + token }
+            }
+          );
+
+          alert('Penilaian KPI berhasil disimpan!');
+          e.target.reset();
+        } catch (err) {
+          console.error(err);
+          alert('Gagal menyimpan penilaian KPI');
         }
-      );
-
-      alert('Penilaian KPI berhasil disimpan!');
-      e.target.reset();
-    } catch (err) {
-      console.error(err);
-      alert('Gagal menyimpan penilaian KPI');
-    }
-  });
+      });
 
       // ---------------------------------------------------------------------------------
-      // 5. Kondite (placeholder)
+      // KONDITE FORM
       // ---------------------------------------------------------------------------------
       document.getElementById('konditeForm').addEventListener('submit', (e) => {
         e.preventDefault();
